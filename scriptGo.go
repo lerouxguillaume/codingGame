@@ -12,7 +12,9 @@ import "sort"
 const MAX_PREDICT = 15;
 const INFINITE = 1000;
 const SAFE_ZONE = 3;
+const RELOAD_BOMB = 20;
 var reload = 0;
+var turn = 0;
 
 // AxisSorter sorts planets by axis.
 type RouteSorter []Route
@@ -302,7 +304,7 @@ func (g *Graph) expand(){
             if(current.spare.unit > 30 && current.prod < 3)||(current.prod == 0 && current.spare.unit >= 10){
                 g.msg += fmt.Sprint("INC ",current.id,";")
             }else if(current.prod == 3){
-            	g.msg += g.factorys[i].sendToFront()
+                g.msg += g.factorys[i].sendToFront()
             }
         }
     }
@@ -331,16 +333,116 @@ func (g *Graph)bomb(){
     }
     if(theirProd >= myProd && reload < 0 && sourceId != -1){
         g.msg += fmt.Sprint("BOMB ",sourceId,minDist.id,";")
-        reload = 20;
+        reload = RELOAD_BOMB;
     }
+}
+
+
+func (f *Factory)amICloser()bool{
+    they := INFINITE;
+    me := INFINITE;
+    for _,value := range f.routes {
+        if(value.end.camp == 1 && value.cost < me){
+            me = value.cost
+        }else if(value.end.camp == -1 && value.cost < they){
+            they = value.cost;
+        }
+    }
+    return me < they;
+}
+
+func (g *Graph)spread(){
+    var targets []Factory;
+    var hunter Factory;
+    for i:=0;i<len(g.factorys);i++ {
+        if(g.factorys[i].camp == 1){
+            hunter = g.factorys[i];
+            for _,value := range hunter.routes{
+                if(value.end.camp == 0 && value.end.prod > 0 &&  value.end.amICloser()){
+                    targets= append(targets, *value.end);
+                }
+            }
+        }
+    }
+    soldiers := hunter.spare.unit;
+    targets = sacADos(soldiers,targets);
+    for _,target := range targets{
+        g.msg += hunter.sendUnits(target.id,target.units[0]+1);
+    }
+}
+
+func sacADos(capacity int, objects []Factory) []Factory{
+    var res []Factory
+    if(len(objects) == 1){
+        return append(res,objects[0]);
+    }else if(len(objects) < 1){
+        return res
+    }else{
+        m := make([][]int,len(objects));
+        for i := range m{
+            m[i] = make([]int, capacity);
+        }
+        for j:= 0;j < capacity;j++{
+            if(objects[0].units[0]+1 > j){
+                m[0][j] = 0
+            }else{
+                m[0][j] = objects[0].prod;
+            }
+        }
+        for i := 1; i < len(objects);i++{
+            for j:= 0;j < capacity;j++{
+                if(objects[i].units[0]+1 > j){
+                    m[i][j] = m[i-1][j]
+                }else{
+                    arg1 := m[i-1][j];
+                    arg2 := m[i-1][j-objects[i].units[0]-1] + objects[i].prod;
+                    if(arg1 > arg2){
+                        m[i][j] = arg1
+                    }else{
+                        m[i][j] = arg2
+                    }
+                }
+            }
+        }
+
+        j:= capacity-1
+        i:= len(objects)-1;
+        //fmt.Fprintln(os.Stderr, "DEBUG START ", j);
+
+        for (m[i][j] == m[i][j-1]){
+            j--
+        }
+              
+      //fmt.Fprintln(os.Stderr, "DEBUG START ", j);
+
+        for(j > 0){
+            for(i > 0 && m[i][j] == m[i-1][j]){
+                i--
+            }
+            j -= objects[i].units[0]+1;
+            //fmt.Fprintln(os.Stderr, "DEBUG", j);
+
+            if(j >= 0){
+                res = append(res, objects[i]);
+            }
+            i--
+        }
+    }
+    //fmt.Fprintln(os.Stderr, "objects", len(objects), objects);
+    return res;
 }
 
 func (g *Graph) play() {
     g.state();
-    g.help();
-    g.expand();
+    if(turn > 0){
+        g.help();
+        g.expand();
+    }else{
+        g.spread();
+    }
     g.bomb();
     g.msg += "WAIT"
+    turn++;
 }
 
 
