@@ -3,7 +3,7 @@ package main
 import "fmt"
 //import "os"
 import "sort"
-import "math/rand"
+//import "math/rand"
 
 /**
 * Auto-generated code below aims at helping you parse
@@ -280,38 +280,30 @@ func (f *Factory) sendToFront()(string){
     frontLane := Target{id:-1}
     best := INFINITE;
     for _,value := range f.routes{
-        tmp := f.end.evaluateDistToEnenmys()
+        tmp := value.end.evaluateDistToEnenmys()
         if(tmp < best){
             best = tmp;
-            frontlane = Target{id:value.end.id,units:value.end.spare.units}
+            frontLane = Target{id:value.end.id,units:f.spare.unit}
         }
     }
-    return f.sendUnits(target,units);
+    //fmt.Fprintln(os.Stderr, "debug",frontLane)
+    return f.sendUnits(frontLane.id,frontLane.units);
 }
 
 func (g *Graph) expand(){
     for i:=0;i<len(g.factorys);i++ {
-        if(g.factorys[i].id == 3 && g.factorys[i].spare > 0){
-            g.msg += g.sendToFront()
-            //fmt.Fprintln(os.Stderr, "debug EXPAND id: ",g.factorys[i].spare);
-        }
         if(g.factorys[i].camp == 1 && g.factorys[i].spare.unit>0){
             current := g.factorys[i]
-            if(current.spare.unit > 30 && current.prod < 3)||(current.prod == 0 && current.spare.unit >= 10){
-                g.msg += fmt.Sprint("INC ",current.id,";")
-            }else if(current.spare.unit > 100 && current.prod == 3){
-                random := rand.Intn(len(g.factorys));
-                for ( random == current.id){
-                    random = rand.Intn(len(g.factorys));
-                }
-                g.msg += current.sendUnits(random, 10);
-            }
             target := g.lookForTargets(current)
             for k := 0; k < len(target); k++ {
                 //fmt.Fprintln(os.Stderr, "need help of ",value.spare.unit,"i ask : ", -value.spare.unit)		
                 g.msg += current.sendUnits(target[k].id, target[k].units);
             }
-
+            if(current.spare.unit > 30 && current.prod < 3)||(current.prod == 0 && current.spare.unit >= 10){
+                g.msg += fmt.Sprint("INC ",current.id,";")
+            }else if(current.prod == 3){
+            	g.msg += g.factorys[i].sendToFront()
+            }
         }
     }
 }
